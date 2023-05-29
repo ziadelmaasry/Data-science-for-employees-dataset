@@ -4,7 +4,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 
-data = pd.read_csv(r"C:\Users\abdel\Downloads\data\ProjectData.csv")
+data = pd.read_csv(r"D:\ACU\PROJECTS\Datascience project\ProjectData.csv")
 print(data.head())
 
 print(data.info())
@@ -174,7 +174,7 @@ print("the average income of female individuals:",female_income_mean,"\n")
 
 
 #14. What is the percentage of male employees in this dataset?
-percentage_male = (data['Gender'] ==1).sum() / len(data) * 100
+percentage_male = (data['Gender'] =="male").sum() / len(data) * 100
 print("the percentage of male :",percentage_male,"% \n")
 
 
@@ -250,7 +250,7 @@ print("the avrege income for married:",avg_status,"$\n")
 
 income_by_cars = data.groupby("Cars")[" Income "].mean()
 
-# Plot the mean income for each group using a bar chart
+
 plt.bar(income_by_cars.index, income_by_cars.values)
 plt.xlabel("Number of Cars")
 plt.ylabel("Mean Income")
@@ -297,7 +297,27 @@ plt.ylabel("Income")
 plt.show()
 
 
+
+# Create a 3D figure
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+x = data["Cars"]
+y = data['Age']
+z = data[' Income ']
+# Create the scatter plot
+ax.scatter(x, y, z)
+
+# Set the axis labels and title
+ax.set_xlabel("Cars")
+ax.set_ylabel('Age')
+ax.set_zlabel('Income')
+ax.set_title('3D Scatter Plot of Dataset')
+
+# Show the plot
+plt.show()
 data.to_csv('pafter.csv', index=False)
+
+
 
 
 
@@ -310,23 +330,15 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import StandardScaler
+from sklearn.feature_selection import SelectKBest, f_classif
+from imblearn.over_sampling import RandomOverSampler
 
-def fix_Marital(a):
-    if( a=="married" ):
-        return "1"
-    else:
-        return "0"
-data["Marital Status"]=data["Marital Status"].apply(fix_Marital).astype(int)
+data['Age_squared'] = data['Age'] ** 2
+data['Income_cars'] = data[' Income '] * data['Cars']
+data['Children_cars'] = data['Children'] * data['Cars']
 
-def fix_gender(a):
-    if  a=="male" :
-        return "1"
-    else :
-        return "0"
-data['Gender'] = data['Gender'].apply(fix_gender).astype(int)
-
-
-data=data[[" Income ","Age","Children","Cars","Purchased Bike","Marital Status","Gender"]]
+# Load the data and select relevant columns
+data = data[[" Income ","Age","Children","Cars",'Children_cars','Income_cars','Age_squared']]
 bins = [0, 50000, 100000, np.inf]
 labels = ["Low", "Medium", "High"]
 data["Income_cat"] = pd.cut(data[" Income "], bins=bins, labels=labels)
@@ -341,11 +353,19 @@ data["Income_cat"] = pd.factorize(data["Income_cat"])[0]
 X = data.drop(columns=["Income_cat"])
 y = data["Income_cat"]
 
+# Feature selection using ANOVA F-test
+selector = SelectKBest(f_classif, k=3)
+X = selector.fit_transform(X, y)
+
+# Resample the data to address class imbalance
+ros = RandomOverSampler(random_state=42)
+X_resampled, y_resampled = ros.fit_resample(X, y)
+
 # Split the data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X_resampled, y_resampled, test_size=0.2, random_state=42)
 
 # Initialize and train a machine learning model
-logistic_regression_model = LogisticRegression(max_iter=1000)
+logistic_regression_model = LogisticRegression(max_iter=1000, C=0.1, penalty='l1', solver='saga')
 scaler = StandardScaler()
 scaler.fit(X_train)
 X_train_scaled = scaler.transform(X_train)
